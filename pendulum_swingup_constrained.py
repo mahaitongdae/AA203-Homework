@@ -217,6 +217,18 @@ def cartpole(s, u):
     ])
     return ds
 
+def pendulum(s, u):
+    g = 9.81
+    m = 1.
+    l = 1.
+
+    theta, dtheta = s
+    ds = jnp.array([
+        dtheta,
+        (3. * g / (2. * l)) * jnp.sin(theta) + 3.0 / (m * l ** 2) * u[0] # + noise
+    ])
+
+    return ds
 
 def discretize(f, dt):
     """Discretize continuous-time dynamics `f` via Runge-Kutta integration."""
@@ -232,26 +244,26 @@ def discretize(f, dt):
 
 
 # Define constants
-n = 4                                # state dimension
+n = 2                                # state dimension
 m = 1                                # control dimension
-s_goal = np.array([0, np.pi, 0, 0])  # desired upright pendulum state
-s0 = np.array([0, 0, 0, 0])          # initial downright pendulum state
-dt = 0.1                             # discrete time resolution
-T = 10.                              # total simulation time
-P = 1e3*np.eye(n)                    # terminal state cost matrix
-Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
-R = 1e-3*np.eye(m)                   # control cost matrix
-# Q = np.diag(np.array([10., 10., 2., 2.]))
-# R = 1e-2*np.eye(m)
-# P = 1e2*np.eye(n)
+s_goal = np.array([np.pi, 0])  # desired upright pendulum state
+s0 = np.array([0, 0])          # initial downright pendulum state
+dt = 0.05                         # discrete time resolution
+T = 2.                              # total simulation time
+# P = 1e3*np.eye(n)                    # terminal state cost matrix
+# Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
+# R = 1e-3*np.eye(m)                   # control cost matrix
+Q = np.diag(np.array([1., 0.1]))
+R = 1e-2*np.eye(m)
+P = Q
 ρ = 1.                               # trust region parameter
-u_max = 8.                           # control effort bound
+u_max = 2.                           # control effort bound
 eps = 5e-3                           # convergence tolerance
 max_iters = 100                      # maximum number of SCP iterations
-animate = True                      # flag for animation
+animate = False                      # flag for animation
 
 # Initialize the discrete-time dynamics
-fd = jax.jit(discretize(cartpole, dt))
+fd = jax.jit(discretize(pendulum, dt))
 
 # Solve the swing-up problem with SCP
 t = np.arange(0., T + dt, dt)
@@ -266,7 +278,7 @@ for k in range(N):
 # Plot state and control trajectories
 fig, ax = plt.subplots(1, n + m, dpi=150, figsize=(15, 2))
 plt.subplots_adjust(wspace=0.45)
-labels_s = (r'$x(t)$', r'$\theta(t)$', r'$\dot{x}(t)$', r'$\dot{\theta}(t)$')
+labels_s = (r'$\theta(t)$', r'$\dot{\theta}(t)$')
 labels_u = (r'$u(t)$',)
 for i in range(n):
     ax[i].plot(t, s[:, i])
@@ -279,7 +291,7 @@ for i in range(m):
     ax[n + i].axhline(-u_max, linestyle='--', color='tab:orange')
     ax[n + i].set_xlabel(r'$t$')
     ax[n + i].set_ylabel(labels_u[i])
-plt.savefig('cartpole_swingup_constrained.png',
+plt.savefig('pendulum_swingup_constrained.png',
             bbox_inches='tight')
 
 # Plot cost history over SCP iterations
@@ -287,7 +299,7 @@ fig, ax = plt.subplots(1, 1, dpi=150, figsize=(8, 5))
 ax.semilogy(J)
 ax.set_xlabel(r'SCP iteration $i$')
 ax.set_ylabel(r'SCP cost $J(\bar{x}^{(i)}, \bar{u}^{(i)})$')
-plt.savefig('cartpole_swingup_constrained_cost.png',
+plt.savefig('pendulum_swingup_constrained_cost.png',
             bbox_inches='tight')
 plt.show()
 
