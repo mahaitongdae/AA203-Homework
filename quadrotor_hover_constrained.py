@@ -189,7 +189,7 @@ def scp_iteration(f, s0, s_goal, s_prev, u_prev, N, P, Q, R, u_max, ρ):
     # END PART (c) ############################################################
 
     prob = cvx.Problem(cvx.Minimize(objective), constraints)
-    prob.solve()
+    prob.solve(verbose=True)
     if prob.status != 'optimal':
         raise RuntimeError('SCP solve failed. Problem status: ' + prob.status)
     s = s_cvx.value
@@ -239,11 +239,11 @@ def twod_quad(s, u):
     x, dx, z, dz, theta, dtheta = s
     ds = jnp.array([
         dx,
-        1 / m * (u[0] + u[1]) * jnp.sin(theta),
+        1 / m * (0.075 * (u[0] + u[1]) + 0.15) * jnp.sin(theta),
         dz,
-        1 / m * (u[0] + u[1]) * jnp.cos(theta) - g,
+        1 / m * (0.075 * (u[0] + u[1]) + 0.15) * jnp.cos(theta) - g,
         dtheta,
-        1 / 2 / Iyy * (u[1] - u[0]) * l
+        1 / 2 / Iyy * (0.075 * (u[1] - u[0])) * l
     ])
 
     return ds
@@ -272,26 +272,26 @@ def discretize(f, dt):
 
 
 # Define constants
-n = 2                                # state dimension
-m = 1                                # control dimension
-s_goal = np.array([np.pi, 0])  # desired upright pendulum state
-s0 = np.array([0, 0])          # initial downright pendulum state
-dt = 0.05                         # discrete time resolution
-T = 2.                              # total simulation time
+n = 6                                # state dimension
+m = 2                                # control dimension
+s_goal = np.array([0., 0., 0.5, 0., 0., 0.])  # desired upright pendulum state
+s0 = np.array([0., 0., 0.5, 0., 0., 0.])  # initial downright pendulum state
+dt = 0.008                        # discrete time resolution
+T = dt * 180                             # total simulation time
 # P = 1e3*np.eye(n)                    # terminal state cost matrix
 # Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
 # R = 1e-3*np.eye(m)                   # control cost matrix
-Q = np.diag(np.array([1., 0.1]))
-R = 1e-2*np.eye(m)
+Q = np.diag(np.array([1. ,0., 1., 0., 0., 0.,]))
+R = 0. * np.eye(m)
 P = Q
 ρ = 1.                               # trust region parameter
-u_max = 2.                           # control effort bound
-eps = 5e-3                           # convergence tolerance
+u_max = 1.                           # control effort bound
+eps = 5e-5                           # convergence tolerance
 max_iters = 100                      # maximum number of SCP iterations
 animate = False                      # flag for animation
 
 # Initialize the discrete-time dynamics
-fd = jax.jit(discretize(pendulum, dt))
+fd = jax.jit(discretize(twod_quad, dt))
 
 # Solve the swing-up problem with SCP
 t = np.arange(0., T + dt, dt)
