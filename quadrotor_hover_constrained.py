@@ -104,7 +104,7 @@ def solve_swingup_scp(f, s0, s_goal, N, P, Q, R, u_max, ρ, eps, max_iters):
     s = np.zeros((N + 1, n))
     s[0] = s0
     for k in range(N):
-        s[k+1] = fd(s[k], u[k])
+        s[k+1] = f(s[k], u[k])
 
     # Do SCP until convergence or maximum number of iterations is reached
     converged = False
@@ -189,13 +189,13 @@ def scp_iteration(f, s0, s_goal, s_prev, u_prev, N, P, Q, R, u_max, ρ):
     # END PART (c) ############################################################
 
     prob = cvx.Problem(cvx.Minimize(objective), constraints)
-    prob.solve(verbose=True)
+    prob.solve(solver=cvx.ECOS)
     if prob.status != 'optimal':
         raise RuntimeError('SCP solve failed. Problem status: ' + prob.status)
     s = s_cvx.value
     u = u_cvx.value
     J = prob.objective.value
-    print(J)
+    # print(J)
     return s, u, J
 
 
@@ -275,7 +275,7 @@ def discretize(f, dt):
 n = 6                                # state dimension
 m = 2                                # control dimension
 s_goal = np.array([0., 0., 0.5, 0., 0., 0.])  # desired upright pendulum state
-s0 = np.array([0., 0., 0.5, 0., 0., 0.])  # initial downright pendulum state
+# s0 = np.array([0.1, 0.01, 0.0, 0.01, 0.1, 0.01])  # initial downright pendulum state
 dt = 0.008                        # discrete time resolution
 T = dt * 180                             # total simulation time
 # P = 1e3*np.eye(n)                    # terminal state cost matrix
@@ -286,53 +286,62 @@ R = 0. * np.eye(m)
 P = Q
 ρ = 1.                               # trust region parameter
 u_max = 1.                           # control effort bound
-eps = 5e-5                           # convergence tolerance
+eps = 5e-3                           # convergence tolerance
 max_iters = 100                      # maximum number of SCP iterations
 animate = False                      # flag for animation
 
-# Initialize the discrete-time dynamics
-fd = jax.jit(discretize(twod_quad, dt))
+def quad_ilqr(s0):
+    # Initialize the discrete-time dynamics
+    fd = jax.jit(discretize(twod_quad, dt))
 
-# Solve the swing-up problem with SCP
-t = np.arange(0., T + dt, dt)
-N = t.size - 1
-s, u, J = solve_swingup_scp(fd, s0, s_goal, N, P, Q, R, u_max, ρ,
-                            eps, max_iters)
+    # Solve the swing-up problem with SCP
+    t = np.arange(0., T + dt, dt)
+    N = t.size - 1
+    s, u, J = solve_swingup_scp(fd, s0, s_goal, N, P, Q, R, u_max, ρ,
+                                eps, max_iters)
 
-# Simulate open-loop control
-for k in range(N):
-    s[k+1] = fd(s[k], u[k])
+    # Simulate open-loop control
+    for k in range(N):
+        s[k+1] = fd(s[k], u[k])
 
-# Plot state and control trajectories
-fig, ax = plt.subplots(1, n + m, dpi=150, figsize=(15, 2))
-plt.subplots_adjust(wspace=0.45)
-labels_s = (r'$\theta(t)$', r'$\dot{\theta}(t)$')
-labels_u = (r'$u(t)$',)
-for i in range(n):
-    ax[i].plot(t, s[:, i])
-    ax[i].axhline(s_goal[i], linestyle='--', color='tab:orange')
-    ax[i].set_xlabel(r'$t$')
-    ax[i].set_ylabel(labels_s[i])
-for i in range(m):
-    ax[n + i].plot(t[:-1], u[:, i])
-    ax[n + i].axhline(u_max, linestyle='--', color='tab:orange')
-    ax[n + i].axhline(-u_max, linestyle='--', color='tab:orange')
-    ax[n + i].set_xlabel(r'$t$')
-    ax[n + i].set_ylabel(labels_u[i])
-plt.savefig('pendulum_swingup_constrained.png',
-            bbox_inches='tight')
+    # Plot state and control trajectories
+    fig, ax = plt.subplots(1, n + m, dpi=150, figsize=(15, 2))
+    plt.subplots_adjust(wspace=0.45)
+    labels_s = (r'$\theta(t)$', r'$\dot{\theta}(t)$')
+    labels_u = (r'$u(t)$',)
+    # for i in range(n):
+    #     ax[i].plot(t, s[:, i])
+    #     ax[i].axhline(s_goal[i], linestyle='--', color='tab:orange')
+    #     ax[i].set_xlabel(r'$t$')
+    #     ax[i].set_ylabel(labels_s[i])
+    # for i in range(m):
+    #     ax[n + i].plot(t[:-1], u[:, i])
+    #     ax[n + i].axhline(u_max, linestyle='--', color='tab:orange')
+    #     ax[n + i].axhline(-u_max, linestyle='--', color='tab:orange')
+    #     ax[n + i].set_xlabel(r'$t$')
+    #     ax[n + i].set_ylabel(labels_u[i])
+    # plt.savefig('pendulum_swingup_constrained.png',
+    #             bbox_inches='tight')
 
-# Plot cost history over SCP iterations
-fig, ax = plt.subplots(1, 1, dpi=150, figsize=(8, 5))
-ax.semilogy(J)
-ax.set_xlabel(r'SCP iteration $i$')
-ax.set_ylabel(r'SCP cost $J(\bar{x}^{(i)}, \bar{u}^{(i)})$')
-plt.savefig('pendulum_swingup_constrained_cost.png',
-            bbox_inches='tight')
-plt.show()
+    # # Plot cost history over SCP iterations
+    # fig, ax = plt.subplots(1, 1, dpi=150, figsize=(8, 5))
+    # ax.semilogy(J)
+    # ax.set_xlabel(r'SCP iteration $i$')
+    # ax.set_ylabel(r'SCP cost $J(\bar{x}^{(i)}, \bar{u}^{(i)})$')
+    # plt.savefig('pendulum_swingup_constrained_cost.png',
+    #             bbox_inches='tight')
+    # plt.show()
 
-# Animate the solution
-if animate:
-    fig, ani = animate_cartpole(t, s[:, 0], s[:, 1])
-    ani.save('cartpole_swingup_constrained.mp4', writer='ffmpeg')
-    plt.show()
+    # Animate the solution
+    # if animate:
+    #     fig, ani = animate_cartpole(t, s[:, 0], s[:, 1])
+    #     ani.save('cartpole_swingup_constrained.mp4', writer='ffmpeg')
+    #     plt.show()
+
+    return J[-1]
+
+s0s = np.random.normal(scale=[0.1, 0.01, 0.1, 0.01, 0.1 ,0.01], size=[10, 6]) + np.array([0.0, 0.0, 0.5, 0.0, 0.0, 0.0])
+costs = []
+for s0 in s0s:
+    costs.append(quad_ilqr(s0))
+print(np.mean(costs), np.std(costs))
