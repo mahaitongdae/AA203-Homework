@@ -181,9 +181,9 @@ def scp_iteration(f, s0, s_goal, s_prev, u_prev, N, P, Q, R, u_max, ρ):
         objective += cvx.quad_form(s_cvx[t] - s_goal, Q) + cvx.quad_form(u_cvx[t], R)
         constraints += [s_cvx[t + 1] == A[t] @ s_cvx[t] + B[t] @ u_cvx[t] + c[t],
                         cvx.norm(s_cvx[t] - s_prev[t], 'inf') <= ρ,
-                        cvx.norm(u_cvx[t] - u_prev[t], 'inf') <= ρ,
-                        cvx.abs(u_cvx[t]) <= u_max
+                        cvx.norm(u_cvx[t] - u_prev[t], 'inf') <= ρ
                         ]
+        # constraints += [cvx.abs(u_cvx[t]) <= u_max]
     objective += cvx.quad_form(s_cvx[-1] - s_goal, P)
     # raise NotImplementedError()
     # END PART (c) ############################################################
@@ -198,34 +198,17 @@ def scp_iteration(f, s0, s_goal, s_prev, u_prev, N, P, Q, R, u_max, ρ):
     print(J)
     return s, u, J
 
-
-def cartpole(s, u):
-    """Compute the cart-pole state derivative."""
-    mp = 1.     # pendulum mass
-    mc = 4.     # cart mass
-    L = 1.      # pendulum length
-    g = 9.81    # gravitational acceleration
-
-    x, θ, dx, dθ = s
-    sinθ, cosθ = jnp.sin(θ), jnp.cos(θ)
-    h = mc + mp*(sinθ**2)
-    ds = jnp.array([
-        dx,
-        dθ,
-        (mp*sinθ*(L*(dθ**2) + g*cosθ) + u[0]) / h,
-        -((mc + mp)*g*sinθ + mp*L*(dθ**2)*sinθ*cosθ + u[0]*cosθ) / (h*L)
-    ])
-    return ds
-
 def pendulum(s, u):
-    g = 9.81
+    g = 10.
     m = 1.
     l = 1.
+
+    noise = np.random.normal(scale=1.0)
 
     theta, dtheta = s
     ds = jnp.array([
         dtheta,
-        (3. * g / (2. * l)) * jnp.sin(theta) + 3.0 / (m * l ** 2) * u[0] # + noise
+        (3. * g / (2. * l)) * jnp.sin(theta) + 3.0 / (m * l ** 2) * u[0] + noise
     ])
 
     return ds
@@ -277,17 +260,17 @@ m = 1                                # control dimension
 s_goal = np.array([np.pi, 0])  # desired upright pendulum state
 s0 = np.array([0, 0])          # initial downright pendulum state
 dt = 0.05                         # discrete time resolution
-T = 2.                              # total simulation time
+T = 10.                              # total simulation time
 # P = 1e3*np.eye(n)                    # terminal state cost matrix
 # Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
 # R = 1e-3*np.eye(m)                   # control cost matrix
 Q = np.diag(np.array([1., 0.1]))
 R = 1e-2*np.eye(m)
 P = Q
-ρ = 1.                               # trust region parameter
+ρ = 2.                               # trust region parameter
 u_max = 2.                           # control effort bound
 eps = 5e-3                           # convergence tolerance
-max_iters = 100                      # maximum number of SCP iterations
+max_iters = 200                      # maximum number of SCP iterations
 animate = False                      # flag for animation
 
 # Initialize the discrete-time dynamics
