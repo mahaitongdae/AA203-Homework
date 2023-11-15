@@ -201,19 +201,26 @@ def scp_iteration(f, s0, s_goal, s_prev, u_prev, N, P, Q, R, u_max, ρ):
 
 def cartpole(s, u):
     """Compute the cart-pole state derivative."""
-    mp = 1.     # pendulum mass
-    mc = 4.     # cart mass
-    L = 1.      # pendulum length
+    mp = 0.1     # pendulum mass
+    mc = 1.0     # cart mass
+    L = 0.5      # pendulum length
     g = 9.81    # gravitational acceleration
 
     x, θ, dx, dθ = s
     sinθ, cosθ = jnp.sin(θ), jnp.cos(θ)
-    h = mc + mp*(sinθ**2)
+    # h = mc + mp*(sinθ**2)
+    # ds = jnp.array([
+    #     dx,
+    #     dθ,
+    #     (mp*sinθ*(L*(dθ**2) + g*cosθ) + u[0]) / h,
+    #     -((mc + mp)*g*sinθ + mp*L*(dθ**2)*sinθ*cosθ + u[0]*cosθ) / (h*L)
+    # ])
+    h = (u[0] + mp * L * dθ ** 2 * sinθ) / (mp + mc)
     ds = jnp.array([
         dx,
         dθ,
-        (mp*sinθ*(L*(dθ**2) + g*cosθ) + u[0]) / h,
-        -((mc + mp)*g*sinθ + mp*L*(dθ**2)*sinθ*cosθ + u[0]*cosθ) / (h*L)
+        h - mp * L * dθ * cosθ / (mc + mp),
+        (g * sinθ - h * cosθ) / (L * (4./3. - mp * cosθ ** 2 / (mc + mp)))
     ])
     return ds
 
@@ -234,12 +241,13 @@ def discretize(f, dt):
 # Define constants
 n = 4                                # state dimension
 m = 1                                # control dimension
-s_goal = np.array([0, np.pi, 0, 0])  # desired upright pendulum state
-s0 = np.array([0, 0, 0, 0])          # initial downright pendulum state
-dt = 0.1                             # discrete time resolution
-T = 10.                              # total simulation time
-P = 1e3*np.eye(n)                    # terminal state cost matrix
+s_goal = np.array([0, 0, 0, 0])  # desired upright pendulum state
+s0 = np.array([0, np.pi, 0, 0])          # initial downright pendulum state
+dt = 0.02                             # discrete time resolution
+T = 3.6                              # total simulation time
 Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
+P = Q #1e3*np.eye(n)                    # terminal state cost matrix
+
 R = 1e-3*np.eye(m)                   # control cost matrix
 # Q = np.diag(np.array([10., 10., 2., 2.]))
 # R = 1e-2*np.eye(m)
@@ -247,8 +255,8 @@ R = 1e-3*np.eye(m)                   # control cost matrix
 ρ = 3.                               # trust region parameter
 u_max = 10.                           # control effort bound
 eps = 5e-3                           # convergence tolerance
-max_iters = 100                      # maximum number of SCP iterations
-animate = True                      # flag for animation
+max_iters = 300                      # maximum number of SCP iterations
+animate = False                      # flag for animation
 
 # Initialize the discrete-time dynamics
 fd = jax.jit(discretize(cartpole, dt))
