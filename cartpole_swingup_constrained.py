@@ -103,8 +103,9 @@ def solve_swingup_scp(f, s0, s_goal, N, P, Q, R, u_max, ρ, eps, max_iters):
     u = np.zeros((N, m))
     s = np.zeros((N + 1, n))
     s[0] = s0
+
     for k in range(N):
-        s[k+1] = fd(s[k], u[k])
+        s[k+1] = f(s[k], u[k])
 
     # Do SCP until convergence or maximum number of iterations is reached
     converged = False
@@ -195,7 +196,7 @@ def scp_iteration(f, s0, s_goal, s_prev, u_prev, N, P, Q, R, u_max, ρ):
     s = s_cvx.value
     u = u_cvx.value
     J = prob.objective.value
-    print(J)
+    # print(J)
     return s, u, J
 
 
@@ -219,7 +220,7 @@ def cartpole(s, u):
     ds = jnp.array([
         dx,
         dθ,
-        h - mp * L * dθ * cosθ / (mc + mp),
+        h - mp * L * dθ * cosθ / (mc + mp) + np.random.normal(scale=1.),
         (g * sinθ - h * cosθ) / (L * (4./3. - mp * cosθ ** 2 / (mc + mp)))
     ])
     return ds
@@ -237,70 +238,91 @@ def discretize(f, dt):
 
     return integrator
 
+def iLQR(s0, plot=False, animate = False):
+    # Define constants
+    n = 4                                # state dimension
+    m = 1                                # control dimension
+    s_goal = np.array([0, 0, 0, 0])  # desired upright pendulum state
+    # s0 = np.array([0, np.pi, 0, 0])          # initial downright pendulum state
+    dt = 0.02                             # discrete time resolution
+    T = 6.                              # total simulation time
+    Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
+    P = Q #1e3*np.eye(n)                    # terminal state cost matrix
 
-# Define constants
-n = 4                                # state dimension
-m = 1                                # control dimension
-s_goal = np.array([0, 0, 0, 0])  # desired upright pendulum state
-s0 = np.array([0, np.pi, 0, 0])          # initial downright pendulum state
-dt = 0.02                             # discrete time resolution
-T = 3.6                              # total simulation time
-Q = np.diag([1e-2, 1., 1e-3, 1e-3])  # state cost matrix
-P = Q #1e3*np.eye(n)                    # terminal state cost matrix
+    R = 1e-3*np.eye(m)                   # control cost matrix
+    # Q = np.diag(np.array([10., 10., 2., 2.]))
+    # R = 1e-2*np.eye(m)
+    # P = 1e2*np.eye(n)
+    ρ = 3.                               # trust region parameter
+    u_max = 10.                           # control effort bound
+    eps = 5e-1                           # convergence tolerance
+    max_iters = 300                      # maximum number of SCP iterations
+    # animate = False                      # flag for animation
 
-R = 1e-3*np.eye(m)                   # control cost matrix
-# Q = np.diag(np.array([10., 10., 2., 2.]))
-# R = 1e-2*np.eye(m)
-# P = 1e2*np.eye(n)
-ρ = 3.                               # trust region parameter
-u_max = 10.                           # control effort bound
-eps = 5e-3                           # convergence tolerance
-max_iters = 300                      # maximum number of SCP iterations
-animate = False                      # flag for animation
+    # Initialize the discrete-time dynamics
+    fd = jax.jit(discretize(cartpole, dt))
 
-# Initialize the discrete-time dynamics
-fd = jax.jit(discretize(cartpole, dt))
+    # Solve the swing-up problem with SCP
+    t = np.arange(0., T + dt, dt)
+    N = t.size - 1
+    s, u, J = solve_swingup_scp(fd, s0, s_goal, N, P, Q, R, u_max, ρ,
+                                eps, max_iters)
 
-# Solve the swing-up problem with SCP
-t = np.arange(0., T + dt, dt)
-N = t.size - 1
-s, u, J = solve_swingup_scp(fd, s0, s_goal, N, P, Q, R, u_max, ρ,
-                            eps, max_iters)
+    loss = 0.
+    # Simulate and evaluate open-loop control
+    Qr = np.diag([1e-2, 0., 1e-3, 1e-3])  # state cost matrix
+    for k in range(N):
+        s[k+1] = fd(s[k], u[k])
+        s[k+1][3] += np.random.normal(scale=0.02)
+        cost = s[k] @ Qr @ s[k] + u[k] @ R @ u[k] + np.sin(s[k][1]) ** 2 + (np.cos(s[k][1]) - 1) ** 2
+        loss += cost
 
-# Simulate open-loop control
-for k in range(N):
-    s[k+1] = fd(s[k], u[k])
+    if plot:
+        # Plot state and control trajectories
+        fig, ax = plt.subplots(1, n + m, dpi=150, figsize=(15, 2))
+        plt.subplots_adjust(wspace=0.45)
+        labels_s = (r'$x(t)$', r'$\theta(t)$', r'$\dot{x}(t)$', r'$\dot{\theta}(t)$')
+        labels_u = (r'$u(t)$',)
+        for i in range(n):
+            ax[i].plot(t, s[:, i])
+            ax[i].axhline(s_goal[i], linestyle='--', color='tab:orange')
+            ax[i].set_xlabel(r'$t$')
+            ax[i].set_ylabel(labels_s[i])
+        for i in range(m):
+            ax[n + i].plot(t[:-1], u[:, i])
+            ax[n + i].axhline(u_max, linestyle='--', color='tab:orange')
+            ax[n + i].axhline(-u_max, linestyle='--', color='tab:orange')
+            ax[n + i].set_xlabel(r'$t$')
+            ax[n + i].set_ylabel(labels_u[i])
+        plt.savefig('cartpole_swingup_constrained.png',
+                    bbox_inches='tight')
 
-# Plot state and control trajectories
-fig, ax = plt.subplots(1, n + m, dpi=150, figsize=(15, 2))
-plt.subplots_adjust(wspace=0.45)
-labels_s = (r'$x(t)$', r'$\theta(t)$', r'$\dot{x}(t)$', r'$\dot{\theta}(t)$')
-labels_u = (r'$u(t)$',)
-for i in range(n):
-    ax[i].plot(t, s[:, i])
-    ax[i].axhline(s_goal[i], linestyle='--', color='tab:orange')
-    ax[i].set_xlabel(r'$t$')
-    ax[i].set_ylabel(labels_s[i])
-for i in range(m):
-    ax[n + i].plot(t[:-1], u[:, i])
-    ax[n + i].axhline(u_max, linestyle='--', color='tab:orange')
-    ax[n + i].axhline(-u_max, linestyle='--', color='tab:orange')
-    ax[n + i].set_xlabel(r'$t$')
-    ax[n + i].set_ylabel(labels_u[i])
-plt.savefig('cartpole_swingup_constrained.png',
-            bbox_inches='tight')
+        # Plot cost history over SCP iterations
+        fig, ax = plt.subplots(1, 1, dpi=150, figsize=(8, 5))
+        ax.semilogy(J)
+        ax.set_xlabel(r'SCP iteration $i$')
+        ax.set_ylabel(r'SCP cost $J(\bar{x}^{(i)}, \bar{u}^{(i)})$')
+        plt.savefig('cartpole_swingup_constrained_cost.png',
+                    bbox_inches='tight')
+        plt.show()
 
-# Plot cost history over SCP iterations
-fig, ax = plt.subplots(1, 1, dpi=150, figsize=(8, 5))
-ax.semilogy(J)
-ax.set_xlabel(r'SCP iteration $i$')
-ax.set_ylabel(r'SCP cost $J(\bar{x}^{(i)}, \bar{u}^{(i)})$')
-plt.savefig('cartpole_swingup_constrained_cost.png',
-            bbox_inches='tight')
-plt.show()
+        # Animate the solution
+        if animate:
+            fig, ani = animate_cartpole(t, s[:, 0], s[:, 1])
+            ani.save('cartpole_swingup_constrained.mp4', writer='ffmpeg')
+            plt.show()
+    return loss
 
-# Animate the solution
-if animate:
-    fig, ani = animate_cartpole(t, s[:, 0], s[:, 1])
-    ani.save('cartpole_swingup_constrained.mp4', writer='ffmpeg')
-    plt.show()
+if __name__ == '__main__':
+    rets = []
+    for i in range(20):
+        try:
+            s0 = np.random.uniform(low=-0.05, high=0.05, size=(4,))
+            s0[1] = np.random.uniform(low=0., high=np.pi)
+            print(s0)
+            rets.append(iLQR(s0))
+        except:
+            pass
+    print(rets)
+    print(np.mean(rets))
+    print(np.std(rets))
