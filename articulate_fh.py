@@ -45,7 +45,7 @@ class ArticulateParking(gym.Env[np.ndarray, Union[int, np.ndarray]]):
     vehicle_length = 4.9276
     trailer_length = 15.8496
     vehicle_width = 1.9
-    v_max = 0.6
+    v_max = 2.0
 
     def __init__(self, render_mode: Optional[str] = None,
                  horizon=500,

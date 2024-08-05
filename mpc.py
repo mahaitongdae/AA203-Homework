@@ -259,14 +259,30 @@ def try_openloop_solver():
     env.reset(options={'state': np.array(x_init)})
     solver = Solver()
     state, control = solver.single_solve(x_init=x_init, predictive_steps=240)
-    from vehicle_render import Renderer
-    renderer = Renderer(vehicle_length=4.9276, trailer_length=15.8496)
-    for i in range(len(state)):
-        renderer.set_state(state[i])
-        renderer.render()
+    env = ArticulateParkingInfiniteHorizon() # render_mode='human',
+    env.reset(options={'state': np.array(x_init)})
+    # from vehicle_render import Renderer
+    # renderer = Renderer(vehicle_length=4.9276, trailer_length=15.8496)
+    # for i in range(len(state)):
+    #     renderer.set_state(state[i])
+    #     renderer.render()
+    roll_out_states = [np.array(x_init)]
+    for a in control:
+        s, _, _, _, _, = env.step(a)
+        # env.render()
+        roll_out_states.append(s)
+
+    roll_out_states = np.array(roll_out_states)
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 6, figsize=(10, 3))
+    for i in range(6):
+        axs[i].plot(state[:, i], label='mpc')
+        axs[i].plot(roll_out_states[:, i], label='rollout')
+    plt.legend()
+    plt.show()
 
 
 if __name__ == '__main__':
-    # try_openloop_solver()
-    solver = Solver()
-    solver.generate_dataset(grid_size=15)
+    try_openloop_solver()
+    # solver = Solver()
+    # solver.generate_dataset(grid_size=15)
