@@ -195,6 +195,8 @@ class Solver(object):
                 feasible_points += 1
                 state, control = self.extract_solution(casadi_sol, predict_steps=240)
                 feasible_initials.append(np.ones([1, ]))
+                time = 0.05 * np.arange(240).reshape((240, 1))
+                state = np.hstack([state, time])
                 states.append(state)
                 controls.append(control)
             else:
@@ -283,6 +285,6 @@ def try_openloop_solver():
 
 
 if __name__ == '__main__':
-    try_openloop_solver()
-    # solver = Solver()
-    # solver.generate_dataset(grid_size=15)
+    # try_openloop_solver()
+    solver = Solver()
+    solver.generate_dataset(grid_size=15)
