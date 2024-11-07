@@ -172,17 +172,24 @@ class Solver(object):
             control [i] = state_all [nt * i + self.state_dim: nt * i + self.state_dim + self.action_dim].reshape(-1)
         return state, control
 
-    def generate_dataset(self, grid_size=3):
-        x = np.linspace(-10., -8., grid_size)
-        y = np.linspace(0., 1., grid_size)
-        th0 = np.linspace(-np.pi / 2, - np.pi * 5 / 12, grid_size)
-        # Create the grid
-        X, Y, TH0 = np.meshgrid(x, y, th0, indexing='ij')
+    def generate_dataset(self, grid_size=3, horizon=900, theta_grid=False):
+        x = np.linspace(-10., -6., grid_size)
+        y = np.linspace(2., 4., grid_size)
+        if theta_grid: 
+            th0 = np.linspace(-np.pi * 7 / 12, - np.pi* 5 / 12, grid_size)
+            # Create the grid
+            X, Y, TH0 = np.meshgrid(x, y, th0, indexing='ij')
+        else:
+            X, Y = np.meshgrid(x, y)
 
         grid_x = X.ravel()
         grid_y = Y.ravel()
-        grid_th0 = TH0.ravel()
-        grid_dth = -1 * grid_th0
+        if theta_grid:
+            grid_th0 = TH0.ravel()
+            grid_dth = -1 * grid_th0
+        else:
+            grid_th0 = -np.pi / 2 * np.ones_like(grid_x)
+            grid_dth = np.zeros_like(grid_x)
         grid_v = np.zeros_like(grid_x)
         grid_delta = np.zeros_like(grid_x)
 
@@ -194,15 +201,17 @@ class Solver(object):
         controls = []
 
         for x_init in tqdm(init_states):
-            casadi_sol = self.solve(x_init.tolist(), predict_steps=240)
+            casadi_sol = self.solve(x_init.tolist(), predict_steps=horizon)
             feasible = self.check_feasible(casadi_sol)
             if feasible:
                 feasible_points += 1
-                state, control = self.extract_solution(casadi_sol, predict_steps=240)
+                state, control = self.extract_solution(casadi_sol, predict_steps=horizon)
                 feasible_initials.append(np.ones([1, ]))
-                time = 0.05 * np.arange(240).reshape((240, 1))
-                state = np.hstack([state, time])
-                states.append(state)
+                init_state = np.kron(x_init, np.ones([horizon, 1]))
+
+                # time = 0.05 * np.arange(horizon).reshape((horizon, 1))
+                # state = np.hstack([state, time])
+                states.append(np.hstack([state, init_state]))
                 controls.append(control)
             else:
                 feasible_initials.append(np.zeros([1, ]))
@@ -287,10 +296,11 @@ def try_openloop_solver():
         axs[i].plot(state[:, i], label='mpc')
         # axs[i].plot(roll_out_states[:, i], label='rollout')
     plt.legend()
-    plt.savefig("openloop.png")
+    plt.tight_layout()
+    plt.savefig('openloop.jpg')
 
 
 if __name__ == '__main__':
-    try_openloop_solver()
-    # solver = Solver()
-    # solver.generate_dataset(grid_size=5)
+    # try_openloop_solver()
+    solver = Solver()
+    solver.generate_dataset(grid_size=20)
