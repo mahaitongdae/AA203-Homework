@@ -50,17 +50,18 @@ class Solver(object):
         x, y, th0, dth, v, delta = s [0], s [1], s [2], s [3], s [4], s [5]
         acc, delta_rate = a [0], a [1]
 
-        return 1e-3 * (x ** 2 + y ** 2 + 10 * th0 ** 2 + 10 * dth ** 2) + 1e-2 * (acc ** 2 + delta_rate ** 2)
+        return 1e-3 * (x ** 2 + y ** 2 + 10 * th0 ** 2 + 100 * dth ** 2) + 1e-2 * (acc ** 2 + delta_rate ** 2)
 
     def terminal_cost(self, s, a):
 
         x, y, th0, dth, v, delta = s [0], s [1], s [2], s [3], s [4], s [5]
         acc, delta_rate = a [0], a [1]
 
-        return 100 * x ** 2 + 100 * y ** 2 + 1000 * th0 ** 2 + 1000 * dth ** 2
+        return 100 * x ** 2 + 100 * y ** 2 + 1000 * th0 ** 2 + 10000 * dth ** 2
 
     def single_solve(self, x_init, predictive_steps):
         r = self.solve(x_init, predictive_steps)
+        print(r['f'].full()[0][0])
         return self.extract_solution(r, predictive_steps)
 
     def solve(self, x_init, predict_steps):
@@ -118,20 +119,24 @@ class Solver(object):
             G += [Fk - Xk]
             lbg += [0.0] * self.state_dim
             ubg += [0.0] * self.state_dim
-            w += [Xk]
-            # if self.tire_model == 'Fiala':
-            lbw += [-inf] * (self.state_dim - 3) + [- np.pi / 2, - 2.0, - np.pi/6]
-            ubw += [inf] * (self.state_dim - 3) + [np.pi / 2, 2.0, np.pi/6]
+
             # else:
             #     lbw += [-inf, -20, -pi, -20, -inf]
             #     ubw += [inf, 20, pi, 20, inf]
             if k != predict_steps:
+                w += [Xk]
+                # if self.tire_model == 'Fiala':
+                lbw += [-inf] * (self.state_dim - 3) + [- np.pi / 2, - 2.0, - np.pi / 6]
+                ubw += [inf] * (self.state_dim - 3) + [np.pi / 2, 2.0, np.pi / 6]
                 F_cost = Function('F_cost', [x, u], [self.cost(x, u)])
                 J += F_cost(w[k * 2], w[k * 2 - 1])
             else:
                 # terminal cost
-                T_cost = Function('F_cost', [x, u], [self.terminal_cost(x, u)])
-                J += T_cost(w [k * 2], w [k * 2 - 1])
+                # T_cost = Function('F_cost', [x, u], [self.terminal_cost(x, u)])
+                # J += T_cost(w [k * 2], w [k * 2 - 1])
+                w += [Xk]
+                lbw += [-0.1, -0.1, -0.03, -0.03, -0.1, - np.pi / 6 ]
+                ubw += [0.1, 0.1, 0.03, 0.03, 0.1, np.pi / 6]
 
 
         # Create NLP solver
@@ -150,10 +155,10 @@ class Solver(object):
         if feasible > 1e-6:
             print("not feasible")
             return False
-        terminal = r['f'].full()[0][0]
-        if terminal > 20:
-            print(terminal)
-            return False
+        # terminal = r['f'].full()[0][0]
+        # if terminal > 20:
+        #     print(terminal)
+        #     return False
         return True
     def extract_solution(self, r, predict_steps):
         state_all = np.array(r ['x'])
@@ -168,9 +173,9 @@ class Solver(object):
         return state, control
 
     def generate_dataset(self, grid_size=3):
-        x = np.linspace(2, 5, grid_size)
-        y = np.linspace(0, 3, grid_size)
-        th0 = np.linspace(-np.pi / 12, np.pi / 12, grid_size)
+        x = np.linspace(-10., -8., grid_size)
+        y = np.linspace(0., 1., grid_size)
+        th0 = np.linspace(-np.pi / 2, - np.pi * 5 / 12, grid_size)
         # Create the grid
         X, Y, TH0 = np.meshgrid(x, y, th0, indexing='ij')
 
@@ -255,36 +260,37 @@ class InitialStateFeasibilityDataset(Dataset):
 
 
 def try_openloop_solver():
-    from articulate_fh import ArticulateParkingInfiniteHorizon
-    env = ArticulateParkingInfiniteHorizon(render_mode='human')
-    x_init = [ 2.   ,       0.5    ,     -0.26179939 , 0.26179939 , 0.       ,   0.        ]
-    env.reset(options={'state': np.array(x_init)})
+    # from articulate_fh import ArticulateParkingInfiniteHorizon
+    # env = ArticulateParkingInfiniteHorizon() #render_mode='human'
+    x_init = [ -10   ,       2.    , -np.pi / 2,  0 , 0.       ,   0.        ]
+    # env.reset(options={'state': np.array(x_init)})
     solver = Solver()
-    state, control = solver.single_solve(x_init=x_init, predictive_steps=240)
-    env = ArticulateParkingInfiniteHorizon() # render_mode='human',
-    env.reset(options={'state': np.array(x_init)})
-    # from vehicle_render import Renderer
-    # renderer = Renderer(vehicle_length=4.9276, trailer_length=15.8496)
-    # for i in range(len(state)):
-    #     renderer.set_state(state[i])
-    #     renderer.render()
-    roll_out_states = [np.array(x_init)]
-    for a in control:
-        s, _, _, _, _, = env.step(a)
-        # env.render()
-        roll_out_states.append(s)
+    state, control = solver.single_solve(x_init=x_init, predictive_steps=720)
+    print(state[-1])
+    # env = ArticulateParkingInfiniteHorizon() # render_mode='human',
+    # env.reset(options={'state': np.array(x_init)})
+    # # from vehicle_render import Renderer
+    # # renderer = Renderer(vehicle_length=4.9276, trailer_length=15.8496)
+    # # for i in range(len(state)):
+    # #     renderer.set_state(state[i])
+    # #     renderer.render()
+    # roll_out_states = [np.array(x_init)]
+    # for a in control:
+    #     s, _, _, _, _, = env.step(a)
+    #     # env.render()
+    #     roll_out_states.append(s)
 
-    roll_out_states = np.array(roll_out_states)
+    # roll_out_states = np.array(roll_out_states)
     import matplotlib.pyplot as plt
     fig, axs = plt.subplots(1, 6, figsize=(10, 3))
     for i in range(6):
         axs[i].plot(state[:, i], label='mpc')
-        axs[i].plot(roll_out_states[:, i], label='rollout')
+        # axs[i].plot(roll_out_states[:, i], label='rollout')
     plt.legend()
-    plt.show()
+    plt.savefig("openloop.png")
 
 
 if __name__ == '__main__':
-    # try_openloop_solver()
-    solver = Solver()
-    solver.generate_dataset(grid_size=15)
+    try_openloop_solver()
+    # solver = Solver()
+    # solver.generate_dataset(grid_size=5)
