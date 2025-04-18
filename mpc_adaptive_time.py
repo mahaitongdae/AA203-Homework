@@ -39,7 +39,7 @@ class SolverAdaptiveTime(object):
         dt = 0.002 * tf # total 1000 steps
 
         x, y, th0, dth, v, delta = s[0], s[1], s[2], s[3], s[4], s[5]
-        acc, delta_rate = 4 * a[0], np.pi / 6 * a[1]
+        acc, delta_rate = 2 * a[0], np.pi / 12 * a[1]
         normalized_steer = tan(delta) * R / l
         return vertcat(x + dt * v * cos(th0),
         y + dt * v * sin(th0),
