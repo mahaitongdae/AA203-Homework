@@ -3,9 +3,13 @@ import numpy as np
 import time
 import pygame
 from pygame import gfxdraw, freetype
+import os
+from datetime import datetime
+import imageio
+
 class Renderer(object):
 
-    def __init__(self, vehicle_length = None, trailer_length = None):
+    def __init__(self, vehicle_length = None, trailer_length = None, save_video=False):
         self.screen_dim = 1200
         self.screen = None
         self.clock = None
@@ -20,6 +24,8 @@ class Renderer(object):
             self.trailer_length = trailer_length
         else:
             self.trailer_length = 2.
+        self.frames = []
+        self.save_video = save_video
 
     def set_state(self, state):
         self.state = state
@@ -222,22 +228,34 @@ class Renderer(object):
             return np.transpose(
                 np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
             )
-        # if self.save_video:
-        #     frame = pygame.surfarray.array3d(self.surf)
-        #
-        #     # frame = np.flip(frame, axis=1)
-        #     frame = np.transpose(frame, (1, 0, 2))  # Transpose the frame
-        #     self.frames.append(frame)
-        #
-        #     self.frame_count += 1
+        if self.save_video:
+            frame = pygame.surfarray.array3d(self.surf)
+
+            # frame = np.flip(frame, axis=1)
+            frame = np.transpose(frame, (1, 0, 2))  # Transpose the frame
+            self.frames.append(frame)
+
+            # self.frame_count += 1
+
+    def save(self,):
+        if self.save_video:
+            os.makedirs('videos', exist_ok=True)
+            now = datetime.now()
+            # Format date and time
+            formatted_now = now.strftime("%Y-%m-%d_%H-%M-%S")
+            video_name = formatted_now
+            output_filename = f'./videos/pygame_video_{video_name}.mp4'
+            imageio.mimsave(output_filename, self.frames, fps=self.metadata["render_fps"])
 
 def test_rendering():
-    renderer = Renderer()
+    renderer = Renderer(save_video=True)
 
     for i in range(100):
-        renderer.set_state((5 / 100 * i, 1, 30 / 180 * np.pi, 0 / 180 * np.pi,))
+        renderer.set_state((5 / 100 * i, 1, 30 / 180 * np.pi, 0 / 180 * np.pi, 0.0, 0.0))
         renderer.render()
         time.sleep(0.01)
+
+    renderer.save()
 
 if __name__ == '__main__':
     test_rendering()

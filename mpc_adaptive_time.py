@@ -300,7 +300,9 @@ def try_openloop_solver():
     env = ArticulateParkingInfiniteHorizon() # render_mode='human',
     env.reset(options={'state': np.array(x_init)})
     from vehicle_render import Renderer
-    renderer = Renderer(vehicle_length=4.9276, trailer_length=15.8496)
+    renderer = Renderer(vehicle_length=4.9276,
+                        trailer_length=15.8496,
+                        save_video=True)
     for i in range(len(state)):
         renderer.set_state(state[i])
         renderer.render()
@@ -311,6 +313,7 @@ def try_openloop_solver():
     #     roll_out_states.append(s)
     #
     # roll_out_states = np.array(roll_out_states)
+    renderer.save()
     import matplotlib.pyplot as plt
     fig, axs = plt.subplots(1, 6, figsize=(10, 3))
     for i in range(6):
@@ -322,10 +325,11 @@ def try_openloop_solver():
 
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--trailer_length', type=float, default=15.)
-    parser.add_argument('--grid_size', type=int, default=20)
-    args = parser.parse_args()
-    solver = SolverAdaptiveTime(trailer_length=args.trailer_length)
-    solver.generate_dataset(grid_size=2)
+    try_openloop_solver()
+    # import argparse
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--trailer_length', type=float, default=15.)
+    # parser.add_argument('--grid_size', type=int, default=20)
+    # args = parser.parse_args()
+    # solver = SolverAdaptiveTime(trailer_length=args.trailer_length)
+    # solver.generate_dataset(grid_size=2)

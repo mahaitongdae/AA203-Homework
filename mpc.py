@@ -270,25 +270,21 @@ class InitialStateFeasibilityDataset(Dataset):
 def try_openloop_solver():
     from articulate_fh import ArticulateParkingInfiniteHorizon
     env = ArticulateParkingInfiniteHorizon() #render_mode='human'
-    x_init = [ -10   ,       10.    , -np.pi / 2,  0 , 0.       ,   0.        ]
+    x_init = [ -20   ,       2.    , -np.pi / 2,  0 , 0.       ,   0.        ]
     env.reset(options={'state': np.array(x_init)})
     solver = Solver()
-    state, control = solver.single_solve(x_init=x_init, predictive_steps=720)
+    state, control = solver.single_solve(x_init=x_init, predictive_steps=600)
     print(state[-1])
     env = ArticulateParkingInfiniteHorizon() # render_mode='human',
     env.reset(options={'state': np.array(x_init)})
     from vehicle_render import Renderer
-    renderer = Renderer(vehicle_length=4.9276, trailer_length=15.8496)
+    renderer = Renderer(vehicle_length=4.9276,
+                        trailer_length=15.8496,
+                        save_video=True)
     for i in range(len(state)):
         renderer.set_state(state[i])
         renderer.render()
-    # roll_out_states = [np.array(x_init)]
-    # for a in control:
-    #     s, _, _, _, _, = env.step(a)
-    #     env.render()
-    #     roll_out_states.append(s)
-    #
-    # roll_out_states = np.array(roll_out_states)
+    renderer.save()
     import matplotlib.pyplot as plt
     fig, axs = plt.subplots(1, 6, figsize=(10, 3))
     for i in range(6):
